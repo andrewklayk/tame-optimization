@@ -41,22 +41,37 @@ class ALOptimizer:
         self._t = t
 
         ## TODO: kwargs
-        
+        # lr = kwargs.get("lr", None)
         if minimizer is None or minimizer.lower() == 'adam':
-            self._optimizer = optim.Adam(self.net.parameters(), lr=0.005)
+            self._optimizer = optim.Adam(self.net.parameters(), **kwargs)
         elif minimizer.lower() == 'sgd':
-            self._optimizer = optim.SGD(self.net.parameters(), lr =0.005)
+            self._optimizer = optim.SGD(self.net.parameters(), **kwargs)
         else:
             raise ValueError(f'Unknown optimizer: {minimizer}')
 
-
         
-    def optimize(self, dataloader: torch.utils.data.DataLoader, maxiter=3, epochs=3, verbose=True):
+    def optimize(self, dataloader: torch.utils.data.DataLoader, maxiter: int=3, epochs: int=3, verbose: bool=True) -> None:
+        """
+        Perform optimization using the Augmented Lagrangian method.
+
+        Iteratively minimize the augmented Lagrangian function with respect to 
+        the neural network parameters while updating the Lagrange multipliers and augmentation term.
+        The method updates the network parameters in place and records optimization history.
+
+        Args:
+            dataloader (torch.utils.data.DataLoader): DataLoader providing input data and labels for training.
+            maxiter (int, optional): Number of outer iterations for updating the Lagrange multipliers. Default is 3.
+            epochs (int, optional): Number of epochs per outer iteration for minimizing the augmented Lagrangian. Default is 3.
+            verbose (bool, optional): Whether to print progress and constraint updates. Default is True.
+
+        Returns:
+            None 
+        """
         self.loss_val = 0
         self.history = {'L': [], 'loss': [], 'constr': []}
         for k in range(maxiter):
             # minimize the augmented lagrangian with the current multiplier values
-            for epoch in range(epochs):    
+            for epoch in range(epochs):
                 for i, data in enumerate(dataloader):
                     self._optimizer.zero_grad()
                     inputs, labels = data
@@ -79,8 +94,7 @@ class ALOptimizer:
             with torch.no_grad():
                 constr = self._constraint_fn(self.net)
                 if verbose:
-                    print(constr)
-                    print(self._loss_fn(outputs, labels))
+                    print('-------')
                     print('\n')
                 self._lambda += self._ss*constr
                 self._ss *= self._t
