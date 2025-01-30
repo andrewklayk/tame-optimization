@@ -40,8 +40,6 @@ class ALOptimizer:
         self._ss = aug_term
         self._t = t
 
-        ## TODO: kwargs
-        # lr = kwargs.get("lr", None)
         if minimizer is None or minimizer.lower() == 'adam':
             self._optimizer = optim.Adam(self.net.parameters(), **kwargs)
         elif minimizer.lower() == 'sgd':
@@ -84,7 +82,8 @@ class ALOptimizer:
                     self._optimizer.step()
 
                     ###
-                    print(f'{epoch}, {i}, {loss_eval.detach().item()}, {constraint_eval.detach().item()}', end='\r')
+                    if verbose:
+                        print(f'{epoch}, {i}, {loss_eval.detach().item()}, {constraint_eval.detach().item()}', end='\r')
                     ###
 
                     self.history['L'].append(L)
