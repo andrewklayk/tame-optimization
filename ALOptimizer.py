@@ -1,5 +1,6 @@
 import torch.utils.data.dataloader
 import torch.optim as optim
+import numpy as np
 
 
 class ALOptimizer:
@@ -101,3 +102,60 @@ class ALOptimizer:
         #######################
         # stopping condition? #
         #######################
+
+
+    def optimize_inner(self, dataloader: torch.utils.data.DataLoader, maxiter: int=3, epochs: int=3, verbose: bool=True,
+                       c_decrease_tol = 1) -> None:
+            """
+            Perform optimization using the Augmented Lagrangian method.
+
+            Iteratively minimize the augmented Lagrangian function with respect to 
+            the neural network parameters while updating the Lagrange multipliers and augmentation term.
+            The method updates the network parameters in place and records optimization history.
+
+            Args:
+                dataloader (torch.utils.data.DataLoader): DataLoader providing input data and labels for training.
+                maxiter (int, optional): Number of outer iterations for updating the Lagrange multipliers. Default is 3.
+                epochs (int, optional): Number of epochs per outer iteration for minimizing the augmented Lagrangian. Default is 3.
+                verbose (bool, optional): Whether to print progress and constraint updates. Default is True.
+                c_decrease_tol (float, optional): Tolerance for constraint norm decrease. If c_(k-1)/c_k is lower than this value, 
+                    Lagrange multipliers are updated. Default is 1.
+
+            Returns:
+                None 
+            """
+            self.loss_val = 0
+            self.history = {'L': [], 'loss': [], 'constr': []}
+
+            constraint_eval_old = np.inf
+
+            for epoch in range(epochs):
+                for i, data in enumerate(dataloader):
+                    self._optimizer.zero_grad()
+                    inputs, labels = data
+                    outputs = self.net(inputs)
+                    constraint_eval = self._constraint_fn(self.net)
+                    loss_eval = self._loss_fn(outputs, labels)
+                    
+                    L = loss_eval + self._lambda @ constraint_eval + 0.5*self._ss*torch.sum(torch.square(constraint_eval))
+                    L.backward()
+                    self._optimizer.step()
+
+                    ###
+                    if verbose:
+                        print(f'{epoch}, {i}, {loss_eval.detach().item()}, {constraint_eval.detach().item()}', end='\r')
+                    ###
+  
+                    self.history['L'].append(L)
+                    self.history['loss'].append(loss_eval)
+                    self.history['constr'].append(constraint_eval)
+                
+                    if constraint_eval <= c_decrease_tol*constraint_eval_old:
+                        with torch.no_grad():
+                            # if verbose:
+                                # print('-------')
+                                # print('\n')
+                            self._lambda += self._ss*constraint_eval
+                            self._ss *= self._t
+                            
+                    constraint_eval_old = constraint_eval.detach()
